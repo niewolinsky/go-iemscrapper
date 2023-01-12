@@ -1,23 +1,40 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
+	"time"
 
+	"github.com/bennyscetbun/jsongo"
 	"github.com/gocolly/colly/v2"
 )
 
 type Iem struct {
-	name             string
-	price_original   string
-	price_discounted string
-	is_unreleased    bool
+	Name                  string `json:"name"`
+	Price                 string `json:"price"`
+	Price_before_discount string `json:"price_before_discount"`
+	Is_unreleased         bool   `json:"is_unreleased"`
+}
+
+type Metadata struct {
+	Date    string `json:"date"`
+	Website string `json:"website"`
+	Id      int    `json:"id"`
 }
 
 func main() {
 	clt := colly.NewCollector()
-	iem_ls := []Iem{}
+	URL := "https://hifigo.com/collections/in-ear?page=16&sort_by=price-ascending"
+
+	time_now := time.Now()
+	time_formatted := time_now.Format("2006-01-02 15:04:05")
+
+	metadata := Metadata{time_formatted, URL, 1}
+
+	iem_list := []Iem{}
 
 	clt.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL)
@@ -53,7 +70,7 @@ func main() {
 			price_discounted = price_original
 		}
 
-		iem_ls = append(iem_ls, Iem{title, price_original, price_discounted, is_unreleased})
+		iem_list = append(iem_list, Iem{title, price_original, price_discounted, is_unreleased})
 	})
 
 	clt.OnHTML(".pagination--next", func(e *colly.HTMLElement) {
@@ -63,8 +80,15 @@ func main() {
 		e.Request.Visit(nextUrl)
 	})
 
-	clt.Visit("https://hifigo.com/collections/in-ear?page=16&sort_by=price-ascending")
-	for _, el := range iem_ls {
-		fmt.Println(el)
+	clt.Visit(URL)
+
+	root := jsongo.Node{}
+	root.Map("iems").Val(iem_list)
+	root.Map("metadata").Val(metadata)
+	iemscrapper_data, _ := json.MarshalIndent(&root, "", "  ")
+
+	err := os.WriteFile("iemscrapper_data.json", iemscrapper_data, 0644)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
