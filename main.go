@@ -9,16 +9,15 @@ import (
 )
 
 type Iem struct {
-	name  string
-	price int
+	name             string
+	price_original   string
+	price_discounted string
+	is_unreleased    bool
 }
 
 func main() {
 	clt := colly.NewCollector()
-	ls := []string{}
-	ls2 := []string{}
-	iem := Iem{"asd", 12}
-	fmt.Print(iem)
+	iem_ls := []Iem{}
 
 	clt.OnRequest(func(r *colly.Request) {
 		fmt.Println("Visiting", r.URL)
@@ -32,9 +31,29 @@ func main() {
 		fmt.Println("Visited", r.Request.URL)
 	})
 
-	clt.OnHTML(".productgrid--items", func(e *colly.HTMLElement) {
-		ls = append(ls, e.ChildTexts(".productitem--title")...)
-		ls2 = append(ls2, e.ChildTexts(".money")...)
+	clt.OnHTML(".productitem--info", func(e *colly.HTMLElement) {
+		title := e.ChildText(".productitem--title")
+		is_unreleased := false
+
+		price_original_arr := e.ChildTexts(".price--main .money")
+		if len(price_original_arr) == 0 {
+			price_original_arr = append(price_original_arr, "0.00$")
+			is_unreleased = true
+		}
+		price_original := price_original_arr[0]
+
+		price_discounted_arr := e.ChildTexts(".price--compare-at .money")
+		if len(price_discounted_arr) == 0 {
+			price_discounted_arr = append(price_discounted_arr, "0.00$")
+			is_unreleased = true
+		}
+		price_discounted := price_discounted_arr[0]
+
+		if price_discounted == "" {
+			price_discounted = price_original
+		}
+
+		iem_ls = append(iem_ls, Iem{title, price_original, price_discounted, is_unreleased})
 	})
 
 	clt.OnHTML(".pagination--next", func(e *colly.HTMLElement) {
@@ -44,9 +63,8 @@ func main() {
 		e.Request.Visit(nextUrl)
 	})
 
-	clt.Visit("https://hifigo.com/collections/in-ear?sort_by=price-ascending")
-	for i, el := range ls {
-		x := strings.TrimSpace(el)
-		fmt.Printf("%v %v \n", x, ls2[i])
+	clt.Visit("https://hifigo.com/collections/in-ear?page=16&sort_by=price-ascending")
+	for _, el := range iem_ls {
+		fmt.Println(el)
 	}
 }
