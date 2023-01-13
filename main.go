@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,13 +11,18 @@ import (
 
 	"github.com/bennyscetbun/jsongo"
 	"github.com/gocolly/colly/v2"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 type Iem struct {
-	Name                  string `json:"name"`
-	Price                 string `json:"price"`
-	Price_before_discount string `json:"price_before_discount"`
-	Is_unreleased         bool   `json:"is_unreleased"`
+	Name                  string `json:"name" bson:"name"`
+	Price                 string `json:"price" bson:"price"`
+	Price_before_discount string `json:"price_before_discount" bson:"price_before_discount"`
+	Is_unreleased         bool   `json:"is_unreleased" bson:"is_unreleased"`
 }
 
 type Metadata struct {
@@ -26,6 +32,20 @@ type Metadata struct {
 }
 
 func main() {
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = client.Ping(context.TODO(), readpref.Primary())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to ping database: %v\n", err)
+		os.Exit(1)
+	}
+
+	iems_collection := client.Database("go-iemscrapper").Collection("iems")
+
 	clt := colly.NewCollector()
 	URL := "https://hifigo.com/collections/in-ear?page=16&sort_by=price-ascending"
 
@@ -86,8 +106,19 @@ func main() {
 	root.Map("iems").Val(iem_list)
 	root.Map("metadata").Val(metadata)
 	iemscrapper_data, _ := json.MarshalIndent(&root, "", "  ")
+	var doc interface{}
+	err = bson.UnmarshalExtJSON(iemscrapper_data, true, &doc)
+	if err != nil {
+		panic(err)
+	}
 
-	err := os.WriteFile("iemscrapper_data.json", iemscrapper_data, 0644)
+	result, err := iems_collection.InsertOne(context.TODO(), doc)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(result.InsertedID)
+
+	err = os.WriteFile("iemscrapper_data.json", iemscrapper_data, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
