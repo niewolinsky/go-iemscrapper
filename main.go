@@ -50,6 +50,14 @@ func initScrapper() *colly.Collector {
 		os.Exit(1)
 	})
 
+	clt.OnRequest(func(r *colly.Request) {
+		fmt.Println("Visiting", r.URL)
+	})
+
+	clt.OnResponse(func(r *colly.Response) {
+		fmt.Println("Visited", r.Request.URL)
+	})
+
 	return clt
 }
 
@@ -109,8 +117,10 @@ func main() {
 			price_discounted = price_original
 		}
 
+		// fmt.Println("Im appending!")
 		iem_list = append(iem_list, Iem{title, price_original, price_discounted, is_unreleased})
 	})
+
 	//visit next page
 	clt.OnHTML(".pagination--next", func(e *colly.HTMLElement) {
 		urlSplit := strings.SplitAfter(e.Request.URL.String(), "/")
