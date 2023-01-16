@@ -9,10 +9,10 @@ import (
 )
 
 type Iem struct {
-	Name                  string `bson:"name"`
-	Price                 string `bson:"price"`
-	Price_before_discount string `bson:"price_before_discount"`
-	Is_unreleased         bool   `bson:"is_unreleased"`
+	Name                  string `json:"name" bson:"name"`
+	Price                 string `json:"price" bson:"price"`
+	Price_before_discount string `json:"price_before_discount" bson:"price_before_discount"`
+	Is_unreleased         bool   `json:"is_unreleased" bson:"is_unreleased"`
 }
 
 type Ranking struct {
@@ -101,6 +101,7 @@ func (app *application) scrapData() {
 	clt_shop.Visit(url_shop)
 	clt_ranking.Visit(url_ranking)
 
+	app.clearCache()
 	_ = app.createData("iems", iem_list, app.getBaseUrl(url_shop))
 	_ = app.createData("rankings", ranking_list, app.getBaseUrl(url_ranking))
 }
