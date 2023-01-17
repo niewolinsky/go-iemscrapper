@@ -20,7 +20,9 @@ type config struct {
 		uri string
 	}
 	cache struct {
-		uri string
+		uri      string
+		password string
+		number   int
 	}
 	website struct {
 		url string
@@ -36,8 +38,8 @@ type application struct {
 func cacheConnect(cfg config) (*redis.Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.cache.uri,
-		Password: "", // no password set
-		DB:       0,  // use default DB
+		Password: cfg.cache.password, // no password set
+		DB:       cfg.cache.number,   // use default DB
 	})
 	_, err := rdb.Ping(context.TODO()).Result()
 	if err != nil {
@@ -69,12 +71,14 @@ func main() {
 		cfg.website.url = "https://hifigo.com/collections/in-ear?sort_by=price-ascending"
 		flag.StringVar(&cfg.db.uri, "db_uri", "", "MongoDB URI")
 		flag.StringVar(&cfg.cache.uri, "cache_uri", "", "Redis URI")
+		flag.StringVar(&cfg.cache.password, "cache_password", "", "Redis Password")
+		flag.IntVar(&cfg.cache.number, "cache_number", 0, "Redis Cache Number")
 		flag.Parse()
 	}
 
 	db_connection, err := dbConnect(cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "connecting to database failed: %v \n", err)
+		fmt.Fprintf(os.Stderr, "connecting to database (Postgres) failed: %v \n", err)
 		os.Exit(1)
 	}
 	defer func() {
@@ -82,11 +86,11 @@ func main() {
 			panic(err)
 		}
 	}()
+
 	redis_connection, err := cacheConnect(cfg)
 	defer redis_connection.Close()
-
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "connecting to cache (redis) failed: %v \n", err)
+		fmt.Fprintf(os.Stderr, "connecting to cache (Redis) failed: %v \n", err)
 		os.Exit(1)
 	}
 

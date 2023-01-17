@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/niewolinski/go-iemscrapper/helpers"
+
 	"github.com/gocolly/colly/v2"
 )
 
@@ -13,16 +15,17 @@ type Iem struct {
 	Price                 string `json:"price" bson:"price"`
 	Price_before_discount string `json:"price_before_discount" bson:"price_before_discount"`
 	Is_unreleased         bool   `json:"is_unreleased" bson:"is_unreleased"`
+	Rank                  string `json:"ranking" bson:"ranking"`
 }
 
 type Ranking struct {
-	Name  string `bson:"name"`
-	Value string `bson:"value"`
-	Rank  string `bson:"rank"`
+	Name  string `json:"name" bson:"name"`
+	Value string `json:"value" bson:"value"`
+	Rank  string `json:"rank" bson:"rank"`
 }
 
 func (app *application) initScrapper(url string) *colly.Collector {
-	base_url_trim := app.getBaseUrl(url)
+	base_url_trim := helpers.GetBaseUrl(url)
 
 	clt := colly.NewCollector(
 		colly.AllowedDomains(base_url_trim),
@@ -42,6 +45,37 @@ func (app *application) initScrapper(url string) *colly.Collector {
 	})
 
 	return clt
+}
+
+func appendRankings(ranking_list []Ranking, iem_list []Iem) {
+	//use goroutine??
+	for _, ranking := range ranking_list {
+		rank_name_split := strings.Split(ranking.Name, " ")
+
+		for j, iem := range iem_list {
+			if iem_list[j].Rank != "" {
+				continue
+			}
+
+			iem_name_split := strings.Split(iem.Name, " ")
+			is_equal := true
+
+			if len(rank_name_split) <= len(iem_name_split) {
+				num := len(rank_name_split) - 1
+				for i := num; i >= 0; i = i - 1 {
+					if !strings.EqualFold(rank_name_split[i], iem_name_split[i]) {
+						is_equal = false
+						break
+					}
+				}
+
+				if is_equal {
+					iem_list[j].Rank = ranking.Rank
+					fmt.Printf("IEM: %v, RANK: %v", iem, ranking)
+				}
+			}
+		}
+	}
 }
 
 const (
@@ -88,7 +122,7 @@ func (app *application) scrapData() {
 			price_discounted = price_original
 		}
 
-		iem_list = append(iem_list, Iem{title, price_original, price_discounted, is_unreleased})
+		iem_list = append(iem_list, Iem{title, price_original, price_discounted, is_unreleased, ""})
 	})
 
 	clt_shop.OnHTML(".pagination--next", func(e *colly.HTMLElement) {
@@ -101,7 +135,8 @@ func (app *application) scrapData() {
 	clt_shop.Visit(url_shop)
 	clt_ranking.Visit(url_ranking)
 
+	appendRankings(ranking_list, iem_list)
 	app.clearCache()
-	_ = app.createData("iems", iem_list, app.getBaseUrl(url_shop))
-	_ = app.createData("rankings", ranking_list, app.getBaseUrl(url_ranking))
+	_ = app.createData("iems", iem_list, helpers.GetBaseUrl(url_shop))
+	_ = app.createData("rankings", ranking_list, helpers.GetBaseUrl(url_ranking))
 }

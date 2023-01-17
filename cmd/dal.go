@@ -23,9 +23,15 @@ type ScrapResult struct {
 	Metadata     Metadata
 }
 
-type UnmarshalHere struct {
+type ResponseTemplate struct {
 	ID           primitive.ObjectID `json:"id" bson:"_id"`
 	Scrappeddata []Iem              `json:"scrappeddata" bson:"scrappeddata"`
+	Metadata
+}
+
+type ResponseTemplate2 struct {
+	ID           primitive.ObjectID `json:"id" bson:"_id"`
+	Scrappeddata []Ranking          `json:"scrappeddata" bson:"scrappeddata"`
 	Metadata
 }
 
@@ -46,30 +52,49 @@ func (app *application) clearCache() {
 	app.cache_connection.FlushAll(context.TODO())
 }
 
-func (app *application) readDataFromCache(key string) string {
-	val2, err := app.cache_connection.Get(context.TODO(), key).Result()
+func (app *application) getLatestScrapCache(key string) string {
+	result, err := app.cache_connection.Get(context.TODO(), key).Result()
 	if err != nil {
-		dataToCache := app.readDataFromDB("iems")
+		dataToCache := app.getLatestScrap("iems")
 		err = app.cache_connection.Set(context.TODO(), key, dataToCache, time.Hour*24).Err()
 		if err != nil {
 			panic(err)
 		}
 		return dataToCache
 	} else {
-		return val2
+		return result
 	}
 }
 
-func (app *application) readDataFromDB(collection string) string {
+func (app *application) getLatestScrap(collection string) string {
 	pick_collection := app.db_connection.Database("go-iemscrapper").Collection(collection)
 
-	result := UnmarshalHere{}
+	response_template := ResponseTemplate{}
+
 	opts := options.FindOne().SetSort(bson.M{"$natural": -1})
-	if err := pick_collection.FindOne(context.TODO(), bson.D{}, opts).Decode(&result); err != nil {
+	err := pick_collection.FindOne(context.TODO(), bson.D{}, opts).Decode(&response_template)
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v \n", result)
-	res, _ := json.MarshalIndent(result, "", "  ")
-	return string(res)
+	result, _ := json.MarshalIndent(response_template, "", "  ")
+	return string(result)
+}
+
+func (app *application) getAllScraps(collection string) string {
+	pick_collection := app.db_connection.Database("go-iemscrapper").Collection(collection)
+
+	filterCursor, err := pick_collection.Find(context.TODO(), bson.D{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	iemsFiltered := []ResponseTemplate{}
+	err = filterCursor.All(context.TODO(), &iemsFiltered)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	result, _ := json.MarshalIndent(iemsFiltered, "", "  ")
+	return string(result)
 }

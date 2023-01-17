@@ -1,8 +1,8 @@
-package main
+package helpers
 
 import "strings"
 
-func (app *application) getBaseUrl(url string) string {
+func GetBaseUrl(url string) string {
 	url_split := strings.SplitAfter(url, "/")
 	base_url := url_split[1] + url_split[2]
 	base_url_trim := base_url[1 : len(base_url)-1]
